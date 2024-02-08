@@ -1,0 +1,13 @@
+name: region_and_retail_sales_final
+title:
+username:
+account: region-and-retail
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 8964283
+bundleId: 7141051
+url: https://region-and-retail.shinyapps.io/region_and_retail_sales_final/
+when: 1682560880.3421
+lastSyncTime: 1682560880.34216
+asMultiple: FALSE
+asStatic: FALSE

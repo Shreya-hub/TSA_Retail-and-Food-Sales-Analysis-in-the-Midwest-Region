@@ -1,0 +1,247 @@
+---
+title: "Final Project Part 2"
+author: "Keerti Kolakaluri, Shreya Varghese and Chaitrali Ghanekar. Team lead: Chaitrali Ghanekar"
+date: "April 1, 2023"
+output: html_document
+---
+
+
+### Importing all the required libraries
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(forecast)
+library(fpp3)
+library(fable)
+library(tsibble)
+library(tidyverse)
+library(tsibbledata)
+library(dplyr)
+library(GGally)
+library(sugrrants)
+library(tseries)
+```
+
+### Time Series Decomposition
+
+Regional Decomposition: 
+
+### Loading and reading the data.
+This dataset consists of the years 2005 to 2021 including monthly time intervals. It mainly focuses on the region-wide sales distribution in the Midwest region.
+
+```{r}
+regional <- readxl::read_excel("Regional_merged_data.xlsx")
+
+regional 
+
+```
+### Filtering Number of consumer units (in thousands) for all the years for the Midwest region.
+```{r}
+region_cons <- regional %>%
+  filter(Item == "Number of consumer units (in thousands)") %>%
+  select(Year, Item, `Total midwest`) %>%
+  as_tsibble(index = Year)
+
+region_cons
+```
+
+### Plotting the number of years from 2005 to 2019 against the total midwest region consumers.
+```{r regional decomposition}
+region_dcmp <- region_cons %>%
+  model(
+    STL = STL(`Total midwest`)
+  ) 
+
+components(region_dcmp) %>%
+  as_tsibble(region_dcmp) %>%
+  autoplot(`Total midwest`, colour = "gray") +
+  geom_line(aes(y=season_adjust), colour = "#0072B2") +
+  labs(y = "Total Consumers", title = "Midwest Total Consumers from 2005 - 2019")
+```
+
+### Retail Decomposition: 
+
+The retail sales dataset is produced by the Advance Monthly and Monthly Retail Trade Surveys (MARTS and MRTS), the Annual Retail Trade Survey (ARTS), and the Quarterly E-Commerce Report which provides the most complete statistics on retail economic activity in the United States.
+```{r}
+retail <- readxl::read_excel("retail_data.xlsx")
+
+retail
+```
+### Filtering total retail sales for all the years from January to December.
+```{r retail tsibble}
+retail <- retail %>%
+  filter(`Kind of Business` == "Retail sales, total") %>%
+  as_tsibble(index = Year)
+
+retail
+```
+### Reformatting the structure of the data and added a new column 'Month' combining the 'year' and 'key' columns
+```{r}
+retaildata <- retail %>%
+  pivot_longer(c(Jan., Feb., Mar., Apr., May, Jun., Jul., Aug., Sep., Oct., Nov., Dec.), names_to = "key", values_to = "value")
+
+
+retaildata$Month <- paste(retaildata$Year, retaildata$key, sep = " ")
+
+retaildata
+```
+
+### Time series decomposition  Creating a time series object 'retail_dcmp' that contains the decomposed components of the original time series. 
+```{r retail decomposition}
+retail_dcmp <- retaildata %>%
+  model(
+    STL(value ~ trend(window = 7) + season(window = "periodic"), robust = TRUE)
+  ) %>%
+  components() %>%
+  autoplot()
+
+retail_dcmp
+  
+
+```
+
+### Times Series Visualization
+
+### Filtering 'Number of consumer units (in thousands)' for all the years.
+```{r region data}
+region_consumer <- regional %>%
+  filter(Item == "Number of consumer units (in thousands)") %>%
+  as_tsibble(index = Year)
+
+region_consumer
+
+
+```
+### Visualizing the change in sales over the years
+```{r region viz}
+cons_unit <- region_consumer %>%
+  pivot_longer(c(`Total midwest`, `Less than $5,000`, `$5,000 to $9,999`, `$10,000  to $14,999`,`$15,000 to $19,999`, `$20,000 to $29,999`, `$30,000 to $39,999`, `$40,000 to $49,999`, `$50,000 to $69,999`,`$70,000 and more`), names_to = "key", values_to = "value")
+
+cons_unit
+
+cons_unit %>%
+  autoplot(.vars = value) +
+  facet_grid(vars(key), scales = "free_y")
+```
+
+### Creating a 'quarter_retail' tsibble object that contains the retail sales data aggregated by quarter.
+```{r}
+retaildata <- retail %>%
+  pivot_longer(c(Jan., Feb., Mar., Apr., May, Jun., Jul., Aug., Sep., Oct., Nov., Dec.), names_to = "key", values_to = "value")
+
+
+retaildata$Month <- paste(retaildata$Year, retaildata$key, sep = " ")
+
+quarter_retail <- retaildata %>%
+  mutate(Quarter = yearquarter(Month)) %>%
+  as_tsibble(index = Quarter)
+
+quarter_retail
+```
+### Visualizing the quarter-wise retail sales from 2005 to 2021.
+```{r retail viz}
+autoplot(quarter_retail, value) +
+  labs(y = " Number of Retail Sales", title = "Total Retail Sales from 2005 - 2021")
+```
+
+
+### Description of Time Series:
+
+There were two datasets 'Regional Data' and 'Retail Data' which were used for the time series decomposition and visualization. For the regional dataset, the team had chosen to analyze the Midwest region data.
+
+Therefore, for the time series analysis, the regional portion focused on the 'Total Midwest' column for the number of consumer units and the retail portion focused on the 'Total Retail Sales' over the time period of 2005 - 2021. 
+
+For the regional dataset, we visualized the total consumers in the midwest region against the years from 2005 to 2019 using a line plot. The inference from the graph is that the data shows an upward trend. The other plot also shows the change in sales over the years. The plot generally shows an increasing trend except for the ranges "$50,000 to 69,999" and "70,000 to and more".
+For the retail data, we can see that the number of retail sales went significantly higher after the year 2012. The sales for the month of April dropped in 2020.
+
+
+### TS Models:
+
+```{r}
+region_cons
+```
+### Arima model for the Midwest region data
+```{r}
+fit <- region_cons %>%
+  model(ARIMA(`Total midwest`)) 
+
+report(fit)
+```
+```{r}
+fit %>% gg_tsresiduals()
+```
+
+### Forecasting the next 3 years of Midwest Total Consumers 
+```{r}
+fc <- forecast(fit, h=3)
+
+region_cons %>%
+  autoplot(`Total midwest`) +
+  autolayer(fc) +
+  labs(y = "Total Consumers", title = "Predicting Next 3 Years of Midwest Total Consumers")
+```
+
+
+### Retail Data:
+
+### Arima model for the Retail data
+```{r}
+r_model <- auto.arima(retaildata$`value`)
+summary(r_model)
+```
+### Fitting the arima model
+```{r}
+r_fit <- retaildata %>%
+  model(
+    arima212 = ARIMA(value ~ pdq(2,1,2)),
+    Retailmodel=ARIMA(`value`)) 
+
+report(r_fit)
+```
+```{r}
+glance(r_fit) %>% arrange(AICc) %>% select(.model:BIC)
+```
+
+```{r}
+model_sum(r_fit[[glance(r_fit)[[".model"]][[which.min(glance(r_fit)$AICc)]]]][[1]])
+```
+
+```{r}
+fit1 <- retaildata %>% model(
+    arima012 = ARIMA((value) ~ 1 + pdq(0, 1, 2))
+  )
+report(fit1)
+```
+### Predicting Retail Sales for the next 3 years
+
+```{r}
+fc1 <- forecast(fit1, h=3)
+
+retaildata %>%
+  autoplot(`value`) +
+  autolayer(fc1) +
+  labs(y = "Total Consumers", title = "Predicting Sales for next 3 Years")
+```
+
+### TEAM CONTRIBUTION:
+
+The project idea was developed by Keerti Kolakaluri. The dataset was pre-processed by all the team members. For the execution of the project, we divided the tasks equally to ensure equal participation and involvement of all the members. The implementation was divided amongst the group members as follows:
+
+Keerti Kolakaluri:
+1. Time Series Decomposition
+2. Time Series Visualization
+3. Description of Time series
+
+Shreya Varghese:
+1. TS models
+2. Predictions
+
+Chaitrali Ghanekar:
+1. TS models
+2. Predictions
+
+The team members contributed equally hard to ensure timely submission of The Final Project Part 2. 
+
+References: 
+https://otexts.com/fpp3/decomposition.html
+https://otexts.com/fpp3/arima.html
+https://www.rdocumentation.org/packages/stats/versions/3.6.2

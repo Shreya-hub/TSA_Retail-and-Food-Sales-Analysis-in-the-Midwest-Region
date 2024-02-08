@@ -1,0 +1,145 @@
+---
+title: "Final Project"
+author: "Keerti Kolakaluri"
+date: "April 1, 2023"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(forecast)
+library(fpp3)
+library(fable)
+library(tsibble)
+library(tidyverse)
+library(tsibbledata)
+library(dplyr)
+library(GGally)
+library(sugrrants)
+```
+
+## Time Series Decomposition
+
+Regional Decomposition: 
+
+```{r regional data}
+regional <- readxl::read_excel("Regional_merged_data.xlsx")
+
+#regional 
+
+```
+```{r region tsibble}
+region_cons <- regional %>%
+  filter(Item == "Number of consumer units (in thousands)") %>%
+  select(Year, Item, `Total midwest`) %>%
+  as_tsibble(index = Year)
+
+#region_cons
+```
+
+
+```{r regional decomposition}
+region_dcmp <- region_cons %>%
+  model(
+    STL = STL(`Total midwest`)
+  ) 
+  
+components(region_dcmp) %>%
+  as_tsibble(region_dcmp) %>%
+  autoplot(`Total midwest`, colour = "gray") +
+  geom_line(aes(y=season_adjust), colour = "#0072B2") +
+  labs(y = "Total Consumers", title = "Midwest Total Consumers from 2005 - 2021")
+```
+
+Retail Decomposition: 
+
+```{r retail data}
+retail <- readxl::read_excel("retail_data.xlsx")
+
+#retail
+```
+
+```{r retail tsibble}
+retail <- retail %>%
+  filter(`Kind of Business` == "Retail sales, total") %>%
+  as_tsibble(index = Year)
+
+#retail
+```
+
+```{r retail data}
+retaildata <- retail %>%
+  pivot_longer(c(Jan., Feb., Mar., Apr., May, Jun., Jul., Aug., Sep., Oct., Nov., Dec.), names_to = "key", values_to = "value")
+
+
+retaildata$Month <- paste(retaildata$Year, retaildata$key, sep = " ")
+
+#retaildata
+```
+
+
+```{r retail decomposition}
+retail_dcmp <- retaildata %>%
+  model(
+    STL(value ~ trend(window = 7) + season(window = "periodic"), robust = TRUE)
+  ) %>%
+  components() %>%
+  autoplot()
+
+retail_dcmp
+  
+
+```
+
+## Times Series Visualization
+
+
+
+```{r region data}
+region_consumer <- regional %>%
+  filter(Item == "Number of consumer units (in thousands)") %>%
+  as_tsibble(index = Year)
+
+#region_consumer
+
+
+```
+
+```{r region viz}
+cons_unit <- region_consumer %>%
+  pivot_longer(c(`Total midwest`, `Less than $5,000`, `$5,000 to $9,999`, `$10,000  to $14,999`,`$15,000 to $19,999`, `$20,000 to $29,999`, `$30,000 to $39,999`, `$40,000 to $49,999`, `$50,000 to $69,999`,`$70,000 and more`), names_to = "key", values_to = "value")
+
+cons_unit
+
+cons_unit %>%
+  autoplot(.vars = value) +
+  facet_grid(vars(key), scales = "free_y")
+```
+
+```{r retail data}
+retaildata <- retail %>%
+  pivot_longer(c(Jan., Feb., Mar., Apr., May, Jun., Jul., Aug., Sep., Oct., Nov., Dec.), names_to = "key", values_to = "value")
+
+
+retaildata$Month <- paste(retaildata$Year, retaildata$key, sep = " ")
+
+quarter_retail <- retaildata %>%
+  mutate(Quarter = yearquarter(Month)) %>%
+  as_tsibble(index = Quarter)
+
+#quarter_retail
+```
+
+```{r retail viz}
+autoplot(quarter_retail, value) +
+  labs(y = " Number of Retail Sales", title = "Total Retail Sales from 2005 - 2021")
+```
+
+
+## Description of Time Series:
+
+There were two datasets in which were used for the time seies decomposition and visualization. One of the datasets was a regional dataset and the other was a retail dataset. For the regional dataset, the team had chosen to analyze the midwest region. 
+
+Therefore, for the time series analysis, the regional portion focused on the 'Total Midwest' column for the number of consumer units and the retail portion focused on the 'Total Retail Sales' over the time period of 2005 - 2021. 
+
+In conclusion, the time sereis for both these datasets have positive trends and include seasonality. 
